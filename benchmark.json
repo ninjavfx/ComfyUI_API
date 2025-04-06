@@ -1,0 +1,197 @@
+{
+  "1": {
+    "inputs": {
+      "unet_name": "flux1-dev.safetensors",
+      "weight_dtype": "fp8_e4m3fn"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "2": {
+    "inputs": {
+      "clip_name1": "t5xxl_fp16.safetensors",
+      "clip_name2": "clip_l.safetensors",
+      "type": "flux",
+      "device": "default"
+    },
+    "class_type": "DualCLIPLoader",
+    "_meta": {
+      "title": "DualCLIPLoader"
+    }
+  },
+  "3": {
+    "inputs": {
+      "vae_name": "FLUX/sd-vae-ft-mse.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "4": {
+    "inputs": {
+      "device": "cpu",
+      "clip": [
+        "2",
+        0
+      ]
+    },
+    "class_type": "OverrideCLIPDevice",
+    "_meta": {
+      "title": "Force/Set CLIP Device"
+    }
+  },
+  "5": {
+    "inputs": {
+      "lora_name": "FLUX/improved_amateur_realism_v12.safetensors",
+      "strength_model": 0.5000000000000001,
+      "model": [
+        "1",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "Style_Lora"
+    }
+  },
+  "6": {
+    "inputs": {
+      "lora_name": "FLUX/eiza/eiza_dev_v06.safetensors",
+      "strength_model": 1.0000000000000002,
+      "model": [
+        "5",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "My_Lora"
+    }
+  },
+  "8": {
+    "inputs": {
+      "text": "3izaGon2, Close-up portrait of a beautiful woman with shoulder-length dark brown hair styled in a sleek straight bob haircut and full bangs slightly parted in the center. She wears a bold electric pink off-the-shoulder sweater, neutral beige background, soft even lighting.",
+      "clip": [
+        "4",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "Positive"
+    }
+  },
+  "9": {
+    "inputs": {
+      "text": "",
+      "clip": [
+        "4",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "negative"
+    }
+  },
+  "10": {
+    "inputs": {
+      "guidance": 3.5,
+      "conditioning": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "FluxGuidance",
+    "_meta": {
+      "title": "FluxGuidance"
+    }
+  },
+  "11": {
+    "inputs": {
+      "width": 1024,
+      "height": 1024,
+      "batch_size": 1
+    },
+    "class_type": "EmptySD3LatentImage",
+    "_meta": {
+      "title": "EmptySD3LatentImage"
+    }
+  },
+  "12": {
+    "inputs": {
+      "seed": 1091957434331012,
+      "steps": 25,
+      "cfg": 1,
+      "sampler_name": "deis",
+      "scheduler": "beta",
+      "denoise": 1,
+      "model": [
+        "6",
+        0
+      ],
+      "positive": [
+        "10",
+        0
+      ],
+      "negative": [
+        "13",
+        0
+      ],
+      "latent_image": [
+        "11",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "13": {
+    "inputs": {
+      "conditioning": [
+        "9",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "ConditioningZeroOut"
+    }
+  },
+  "14": {
+    "inputs": {
+      "samples": [
+        "12",
+        0
+      ],
+      "vae": [
+        "3",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "21": {
+    "inputs": {
+      "filename_prefix": "benchmark_prompt_001_no_lora",
+      "output_folder": "/data/ml/lora_tools/ComfyUI_api/output",
+      "caption_file_extension": ".txt",
+      "images": [
+        "14",
+        0
+      ]
+    },
+    "class_type": "SaveImageKJ",
+    "_meta": {
+      "title": "Save Image KJ"
+    }
+  }
+}
