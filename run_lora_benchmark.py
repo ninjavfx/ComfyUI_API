@@ -1,12 +1,20 @@
 import os
+import sys
 import json
 import argparse
 import httpx
-from pathlib import Path
 import time
 import random
 
 TEMPLATE_GRAPH_PATH = "benchmark.json"
+
+def check_comfy(url, json):
+    try:
+        return httpx.post(url, json=json, timeout=5)
+    except httpx.RequestError:
+        # This includes ConnectError, Timeout, etc.
+        print("❌ Can't access ComfyUI. Make sure the server is running")
+        sys.exit(1)
 
 def send_to_comfy_http(host, graph):
     """Send the graph to ComfyUI via HTTP API."""
@@ -54,6 +62,7 @@ def get_available_loras(host):
 
 def run_benchmark(args):
     """Run the benchmark with different LoRA configurations."""
+    
     # Fetch available LoRAs and set a default
     available_loras = get_available_loras(args.host)
     if not available_loras:
@@ -77,7 +86,7 @@ def run_benchmark(args):
     #TODO: Set output path as argument
     # Set output path
     output_path = os.path.join(os.getcwd(), "output")
-    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(output_path, exist_ok=True)
 
     for idx, raw_prompt in enumerate(prompts, start=1):
         prompt = f"{args.trigger_word}, {raw_prompt}" if args.trigger_word else raw_prompt
@@ -163,7 +172,7 @@ if __name__ == "__main__":
     parser.add_argument("--char_lora", type=str, required=True, help="Relative path to character LoRA (e.g., FLUX/eiza/eiza_dev_v06.safetensors)")
     parser.add_argument("--style_lora", type=str, help="Relative path to style LoRA")
     parser.add_argument("--style_weight", type=float, default=0.7, help="Style LoRA weight")
-    parser.add_argument("--host", type=str, default="http://192.168.10.130:8188", help="HTTP API URL for ComfyUI")
+    parser.add_argument("--host", type=str, default="http://127.0.0.1:8188", help="HTTP API URL for ComfyUI")
     parser.add_argument("--trigger_word", type=str, default=None, help="Optional trigger word to prepend to prompts")
     parser.add_argument("--seed", type=int, default=None, help="Optional fixed seed for ALL generations")
     parser.add_argument("--width", type=int, help="Override image width. Default 1024")
@@ -172,4 +181,11 @@ if __name__ == "__main__":
     parser.add_argument("--flux_guidance", type=float, help="Set the value for FLuxGuidance. Default 3.5")
 
     args = parser.parse_args()
+
+
+    # Is Comfy running?
+    url = f"{args.host}/prompt"
+    check_comfy(url, json={"prompt": []})
+    
+
     run_benchmark(args)
