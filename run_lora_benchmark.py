@@ -69,7 +69,15 @@ def run_benchmark(args):
     # Load prompts from file
     with open(args.prompts, "r") as f:
         prompts = [p.strip() for p in f.read().split("\n\n") if p.strip()]
+
+    # Check dependency: if one is set, the other must also be set
+    if (args.width is None) != (args.height is None):
+        parser.error("Both --width and --height must be specified together.")
     
+    #TODO: Set output path as argument
+    # Set output path
+    output_path = os.path.join(os.getcwd(), "output")
+    os.makedirs(output_dir, exist_ok=True)
 
     for idx, raw_prompt in enumerate(prompts, start=1):
         prompt = f"{args.trigger_word}, {raw_prompt}" if args.trigger_word else raw_prompt
@@ -80,7 +88,12 @@ def run_benchmark(args):
         prompt_seed = args.seed if args.seed is not None else random.randint(0, 2**32 - 1)
 
         # Define combinations of LoRA configurations
-        combos = [("no_lora", None, None), ("char_lora", args.char_lora, None)]
+        #combos = [("no_lora", None, None), ("char_lora", args.char_lora, None)]
+        if args.only_lora:
+            combos = [("char_lora", args.char_lora, None)]
+        else:
+            combos = [("no_lora", None, None), ("char_lora", args.char_lora, None)]
+
         if args.style_lora:
             combos.append(("char_plus_style", args.char_lora, args.style_lora))
 
@@ -95,19 +108,25 @@ def run_benchmark(args):
             id_to_node = graph  # Graph is a dict with node IDs as keys
 
             # Identify nodes by class_type and title
-            prompt_node = next((k for k, v in id_to_node.items() if v.get("class_type") in ("CLIPTextEncode", "CLIPTextEncodeSDXL")), None)
-            seed_node = next((k for k, v in id_to_node.items() if v.get("class_type") in ("KSamplerAdvanced", "KSampler")), None)
-            outprefix_node = next((k for k, v in id_to_node.items() if v.get("class_type", "").lower().startswith("saveimage")), None)
-            char_lora_node = next((k for k, v in id_to_node.items() if v.get("class_type") in ("LoraLoader", "LoraLoaderModelOnly") and v.get("_meta", {}).get("title", "").lower().startswith("my_lora")), None)
-            style_lora_node = next((k for k, v in id_to_node.items() if v.get("class_type") in ("LoraLoader", "LoraLoaderModelOnly") and v.get("_meta", {}).get("title", "").lower().startswith("style_lora")), None)
+            prompt_node = next((k for k, v in id_to_node.items() if v.get("class_type") in ("CLIPTextEncode")), None)
+            sampler_node = next((k for k, v in id_to_node.items() if v.get("class_type") in ("KSampler")), None)
+            save_image_node = next((k for k, v in id_to_node.items() if v.get("class_type", "").lower().startswith("saveimage")), None)
+            char_lora_node = next((k for k, v in id_to_node.items() if v.get("class_type") in ("LoraLoaderModelOnly") and v.get("_meta", {}).get("title", "").lower().startswith("my_lora")), None)
+            style_lora_node = next((k for k, v in id_to_node.items() if v.get("class_type") in ("LoraLoaderModelOnly") and v.get("_meta", {}).get("title", "").lower().startswith("style_lora")), None)
+            empty_latent_node = next((k for k, v in id_to_node.items() if v.get("class_type") in ("EmptySD3LatentImage")), None)
+            flux_guidance_node = next((k for k, v in id_to_node.items() if v.get("class_type") in ("FluxGuidance")), None)
 
             # Update node inputs correctly
             if prompt_node:
                 id_to_node[prompt_node]["inputs"]["text"] = prompt
-            if seed_node:
-                id_to_node[seed_node]["inputs"]["seed"] = prompt_seed
-            if outprefix_node:
-                id_to_node[outprefix_node]["inputs"]["filename_prefix"] = f"{output_prefix}_{label}"
+            if sampler_node:
+                node = id_to_node[sampler_node]
+                node["inputs"]["seed"] = prompt_seed
+                node["inputs"]["steps"] = args.steps if args.steps is not None else 25
+            if save_image_node:
+                node = id_to_node[save_image_node]
+                node["inputs"]["filename_prefix"] = f"{output_prefix}_{label}"
+                node["inputs"]["output_folder"] = f"{output_path}"
             if char_lora_node:
                 node = id_to_node[char_lora_node]
                 node["inputs"]["lora_name"] = char_path if char_path else default_lora
@@ -116,7 +135,13 @@ def run_benchmark(args):
                 node = id_to_node[style_lora_node]
                 node["inputs"]["lora_name"] = style_path if style_path else default_lora
                 node["inputs"]["strength_model"] = args.style_weight if style_path else 0.0
-
+            if empty_latent_node:
+                node = id_to_node[empty_latent_node]
+                node["inputs"]["width"] = args.width if args.width is not None else 1024
+                node["inputs"]["height"] = args.height if args.height is not None else 1024
+            if flux_guidance_node:
+                id_to_node[flux_guidance_node]["inputs"]["guidance"] = args.flux_guidance if args.flux_guidance is not None else 3.5
+    
             # Debug output
             print(f"🧪 Running {label} for {tag}...")
             #debug_path = f"/tmp/graph_debug_{tag}_{label}.json"
@@ -134,12 +159,17 @@ def run_benchmark(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="LoRA Benchmarking Tool for ComfyUI")
     parser.add_argument("--prompts", type=str, required=True, help="Path to prompts.txt")
+    parser.add_argument("--only_lora", action="store_true", help="Enable only_lora mode, default is off which means the first generation is with no Loras")
     parser.add_argument("--char_lora", type=str, required=True, help="Relative path to character LoRA (e.g., FLUX/eiza/eiza_dev_v06.safetensors)")
     parser.add_argument("--style_lora", type=str, help="Relative path to style LoRA")
     parser.add_argument("--style_weight", type=float, default=0.7, help="Style LoRA weight")
     parser.add_argument("--host", type=str, default="http://192.168.10.130:8188", help="HTTP API URL for ComfyUI")
     parser.add_argument("--trigger_word", type=str, default=None, help="Optional trigger word to prepend to prompts")
     parser.add_argument("--seed", type=int, default=None, help="Optional fixed seed for ALL generations")
+    parser.add_argument("--width", type=int, help="Override image width. Default 1024")
+    parser.add_argument("--height", type=int, help="Override image height. Default 1024")
+    parser.add_argument("--steps", type=int, help="Set the number of steps. Default 25")
+    parser.add_argument("--flux_guidance", type=float, help="Set the value for FLuxGuidance. Default 3.5")
 
     args = parser.parse_args()
     run_benchmark(args)

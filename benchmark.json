@@ -45,8 +45,8 @@
   },
   "5": {
     "inputs": {
-      "lora_name": "FLUX/improved_amateur_realism_v12.safetensors",
-      "strength_model": 0.5000000000000001,
+      "lora_name": "FLUX",
+      "strength_model": 0.500000000000000,
       "model": [
         "1",
         0
@@ -59,8 +59,8 @@
   },
   "6": {
     "inputs": {
-      "lora_name": "FLUX/eiza/eiza_dev_v06.safetensors",
-      "strength_model": 1.0000000000000002,
+      "lora_name": "FLUX",
+      "strength_model": 1.000000000000000,
       "model": [
         "5",
         0
@@ -73,7 +73,7 @@
   },
   "8": {
     "inputs": {
-      "text": "3izaGon2, Close-up portrait of a beautiful woman with shoulder-length dark brown hair styled in a sleek straight bob haircut and full bangs slightly parted in the center. She wears a bold electric pink off-the-shoulder sweater, neutral beige background, soft even lighting.",
+      "text": "some prompt",
       "clip": [
         "4",
         0
@@ -182,7 +182,7 @@
   "21": {
     "inputs": {
       "filename_prefix": "benchmark_prompt_001_no_lora",
-      "output_folder": "/data/ml/lora_tools/ComfyUI_api/output",
+      "output_folder": "output",
       "caption_file_extension": ".txt",
       "images": [
         "14",
