@@ -140,11 +140,19 @@ def run_benchmark(args):
                 ),
                 None,
             )
-            sampler_node = next(
+            scheduler_node = next(
                 (
                     k
                     for k, v in id_to_node.items()
-                    if v.get("class_type") in ("KSampler")
+                    if v.get("class_type") in ("BasicScheduler")
+                ),
+                None,
+            )
+            noise_node = next(
+                (
+                    k
+                    for k, v in id_to_node.items()
+                    if v.get("class_type") in ("RandomNoise")
                 ),
                 None,
             )
@@ -200,10 +208,12 @@ def run_benchmark(args):
             # Update node inputs correctly
             if prompt_node:
                 id_to_node[prompt_node]["inputs"]["text"] = prompt
-            if sampler_node:
-                node = id_to_node[sampler_node]
-                node["inputs"]["seed"] = prompt_seed
-                node["inputs"]["steps"] = args.steps if args.steps is not None else 25
+            if scheduler_node:
+                id_to_node[scheduler_node]["inputs"]["steps"] = (
+                    args.steps if args.steps is not None else 25
+                )
+            if noise_node:
+                id_to_node[noise_node]["inputs"]["seed"] = prompt_seed
             if save_image_node:
                 node = id_to_node[save_image_node]
                 node["inputs"]["filename_prefix"] = f"{output_prefix}_{label}"
@@ -258,7 +268,7 @@ if __name__ == "__main__":
         "--char_lora",
         type=str,
         required=True,
-        help="Relative path to character LoRA (e.g., FLUX/eiza/eiza_dev_v06.safetensors)",
+        help="Relative path to character LoRA (e.g., FLUX/my_lora/my_lora.safetensors)",
     )
     parser.add_argument("--style_lora", type=str, help="Relative path to style LoRA")
     parser.add_argument(

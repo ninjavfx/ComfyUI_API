@@ -45,8 +45,8 @@
   },
   "5": {
     "inputs": {
-      "lora_name": "FLUX",
-      "strength_model": 0.500000000000000,
+      "lora_name": "FLUX/flux_realism_lora.safetensors",
+      "strength_model": 0.5,
       "model": [
         "1",
         0
@@ -59,8 +59,8 @@
   },
   "6": {
     "inputs": {
-      "lora_name": "FLUX",
-      "strength_model": 1.000000000000000,
+      "lora_name": "FLUX/jiaXXX_v01/jiaXXX_v01_000008000.safetensors",
+      "strength_model": 1.0,
       "model": [
         "5",
         0
@@ -73,7 +73,7 @@
   },
   "8": {
     "inputs": {
-      "text": "some prompt",
+      "text": "NONE",
       "clip": [
         "4",
         0
@@ -82,19 +82,6 @@
     "class_type": "CLIPTextEncode",
     "_meta": {
       "title": "Positive"
-    }
-  },
-  "9": {
-    "inputs": {
-      "text": "",
-      "clip": [
-        "4",
-        0
-      ]
-    },
-    "class_type": "CLIPTextEncode",
-    "_meta": {
-      "title": "negative"
     }
   },
   "10": {
@@ -121,52 +108,10 @@
       "title": "EmptySD3LatentImage"
     }
   },
-  "12": {
-    "inputs": {
-      "seed": 1091957434331012,
-      "steps": 25,
-      "cfg": 1,
-      "sampler_name": "deis",
-      "scheduler": "beta",
-      "denoise": 1,
-      "model": [
-        "6",
-        0
-      ],
-      "positive": [
-        "10",
-        0
-      ],
-      "negative": [
-        "13",
-        0
-      ],
-      "latent_image": [
-        "11",
-        0
-      ]
-    },
-    "class_type": "KSampler",
-    "_meta": {
-      "title": "KSampler"
-    }
-  },
-  "13": {
-    "inputs": {
-      "conditioning": [
-        "9",
-        0
-      ]
-    },
-    "class_type": "ConditioningZeroOut",
-    "_meta": {
-      "title": "ConditioningZeroOut"
-    }
-  },
   "14": {
     "inputs": {
       "samples": [
-        "12",
+        "28",
         0
       ],
       "vae": [
@@ -181,8 +126,8 @@
   },
   "21": {
     "inputs": {
-      "filename_prefix": "benchmark_prompt_001_no_lora",
-      "output_folder": "output",
+      "filename_prefix": "benchmark_prompt_001_char_lora",
+      "output_folder": "/data/ml/lora_tools/ComfyUI_api/output",
       "caption_file_extension": ".txt",
       "images": [
         "14",
@@ -192,6 +137,99 @@
     "class_type": "SaveImageKJ",
     "_meta": {
       "title": "Save Image KJ"
+    }
+  },
+  "23": {
+    "inputs": {
+      "max_shift": 1.15,
+      "base_shift": 0.5,
+      "width": 1024,
+      "height": 1024,
+      "model": [
+        "6",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingFlux",
+    "_meta": {
+      "title": "ModelSamplingFlux"
+    }
+  },
+  "25": {
+    "inputs": {
+      "model": [
+        "23",
+        0
+      ],
+      "conditioning": [
+        "10",
+        0
+      ]
+    },
+    "class_type": "BasicGuider",
+    "_meta": {
+      "title": "BasicGuider"
+    }
+  },
+  "26": {
+    "inputs": {
+      "sampler_name": "deis"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "KSamplerSelect"
+    }
+  },
+  "27": {
+    "inputs": {
+      "scheduler": "beta",
+      "steps": 25,
+      "denoise": 1,
+      "model": [
+        "23",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "BasicScheduler"
+    }
+  },
+  "28": {
+    "inputs": {
+      "noise": [
+        "30",
+        0
+      ],
+      "guider": [
+        "25",
+        0
+      ],
+      "sampler": [
+        "26",
+        0
+      ],
+      "sigmas": [
+        "27",
+        0
+      ],
+      "latent_image": [
+        "11",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "SamplerCustomAdvanced"
+    }
+  },
+  "30": {
+    "inputs": {
+      "noise_seed": 595498533852066
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "RandomNoise"
     }
   }
 }
