@@ -59,7 +59,7 @@
   },
   "6": {
     "inputs": {
-      "lora_name": "FLUX/jiaXXX_v01/jiaXXX_v01_000008000.safetensors",
+      "lora_name": "FLUX/000008000.safetensors",
       "strength_model": 1.0,
       "model": [
         "5",

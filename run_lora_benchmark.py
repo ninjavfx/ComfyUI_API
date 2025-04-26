@@ -94,6 +94,10 @@ def run_benchmark(args):
     if (args.width is None) != (args.height is None):
         parser.error("Both --width and --height must be specified together.")
 
+    # Get resolution if set
+    width = args.width if args.width is not None else 1024
+    height = args.height if args.height is not None else 1024
+
     # TODO: Set output path as argument
     # Set output path
     output_path = os.path.join(os.getcwd(), "output")
@@ -103,155 +107,211 @@ def run_benchmark(args):
         prompt = (
             f"{args.trigger_word}, {raw_prompt}" if args.trigger_word else raw_prompt
         )
-        tag = f"prompt_{idx:03}"
-        output_prefix = f"benchmark_{tag}"
+        # Simplified prompt tag: p_001, p_002, etc.
+        tag = f"p_{idx:03}"
+        tag_prompt = f"prompt_{idx:03}"
 
-        # Set the seed: use fixed_seed if provided, otherwise derive from prompt
-        prompt_seed = (
-            args.seed if args.seed is not None else random.randint(0, 2**32 - 1)
-        )
+        # Get character LoRA name without extension for filename
+        char_lora_name = os.path.splitext(os.path.basename(args.char_lora))[0]
 
         # Define combinations of LoRA configurations
-        # combos = [("no_lora", None, None), ("char_lora", args.char_lora, None)]
         if args.only_lora:
-            combos = [("char_lora", args.char_lora, None)]
+            if args.save_no_style:
+                # Only character LoRA, no style LoRA
+                combos = [("char_lora", args.char_lora, None)]
+            else:
+                # Skip the character-only generation when save_no_style is False
+                combos = []
         else:
-            combos = [("no_lora", None, None), ("char_lora", args.char_lora, None)]
+            if args.save_no_style:
+                # Include both no LoRA and character-only LoRA
+                combos = [("no_lora", None, None), ("char_lora", args.char_lora, None)]
+            else:
+                # Only include no LoRA case (skip character-only)
+                combos = [("no_lora", None, None)]
 
+        # Always include the character+style combo if style_lora is provided
         if args.style_lora:
             combos.append(("char_plus_style", args.char_lora, args.style_lora))
 
-        print(f"🧪 Running {tag} with seed:{prompt_seed}")
+        # Repeat the generation as specified by the --repeats option
+        for repeat_idx in range(1, args.repeats + 1):
+            # Set a unique seed for each repeat unless fixed seed is provided
+            if args.seed is not None:
+                prompt_seed = args.seed
+            else:
+                # Generate a 15-digit seed (using a larger range than 2**32)
+                prompt_seed = random.randint(10**14, 10**15 - 1)
 
-        for label, char_path, style_path in combos:
-            # Load the template graph
-            with open(TEMPLATE_GRAPH_PATH, "r") as f:
-                full_graph = json.load(f)
+            # Create a unique output prefix for each repeat with formatted repeat number
+            repeat_str = f"r_{repeat_idx:02}"
 
-            graph = full_graph.get("prompt", full_graph)
-            id_to_node = graph  # Graph is a dict with node IDs as keys
-
-            # Identify nodes by class_type and title
-            prompt_node = next(
-                (
-                    k
-                    for k, v in id_to_node.items()
-                    if v.get("class_type") in ("CLIPTextEncode")
-                ),
-                None,
-            )
-            scheduler_node = next(
-                (
-                    k
-                    for k, v in id_to_node.items()
-                    if v.get("class_type") in ("BasicScheduler")
-                ),
-                None,
-            )
-            noise_node = next(
-                (
-                    k
-                    for k, v in id_to_node.items()
-                    if v.get("class_type") in ("RandomNoise")
-                ),
-                None,
-            )
-            save_image_node = next(
-                (
-                    k
-                    for k, v in id_to_node.items()
-                    if v.get("class_type", "").lower().startswith("saveimage")
-                ),
-                None,
-            )
-            char_lora_node = next(
-                (
-                    k
-                    for k, v in id_to_node.items()
-                    if v.get("class_type") in ("LoraLoaderModelOnly")
-                    and v.get("_meta", {})
-                    .get("title", "")
-                    .lower()
-                    .startswith("my_lora")
-                ),
-                None,
-            )
-            style_lora_node = next(
-                (
-                    k
-                    for k, v in id_to_node.items()
-                    if v.get("class_type") in ("LoraLoaderModelOnly")
-                    and v.get("_meta", {})
-                    .get("title", "")
-                    .lower()
-                    .startswith("style_lora")
-                ),
-                None,
-            )
-            empty_latent_node = next(
-                (
-                    k
-                    for k, v in id_to_node.items()
-                    if v.get("class_type") in ("EmptySD3LatentImage")
-                ),
-                None,
-            )
-            flux_guidance_node = next(
-                (
-                    k
-                    for k, v in id_to_node.items()
-                    if v.get("class_type") in ("FluxGuidance")
-                ),
-                None,
+            print(
+                f"🧪 Running {tag_prompt} repeat {repeat_idx}/{args.repeats} with seed:{prompt_seed}"
             )
 
-            # Update node inputs correctly
-            if prompt_node:
-                id_to_node[prompt_node]["inputs"]["text"] = prompt
-            if scheduler_node:
-                id_to_node[scheduler_node]["inputs"]["steps"] = (
-                    args.steps if args.steps is not None else 25
+            for label, char_path, style_path in combos:
+                # Load the template graph
+                with open(TEMPLATE_GRAPH_PATH, "r") as f:
+                    full_graph = json.load(f)
+
+                graph = full_graph.get("prompt", full_graph)
+                id_to_node = graph  # Graph is a dict with node IDs as keys
+
+                # Identify nodes by class_type and title
+                prompt_node = next(
+                    (
+                        k
+                        for k, v in id_to_node.items()
+                        if v.get("class_type") in ("CLIPTextEncode")
+                    ),
+                    None,
                 )
-            if noise_node:
-                id_to_node[noise_node]["inputs"]["seed"] = prompt_seed
-            if save_image_node:
-                node = id_to_node[save_image_node]
-                node["inputs"]["filename_prefix"] = f"{output_prefix}_{label}"
-                node["inputs"]["output_folder"] = f"{output_path}"
-            if char_lora_node:
-                node = id_to_node[char_lora_node]
-                node["inputs"]["lora_name"] = char_path if char_path else default_lora
-                node["inputs"]["strength_model"] = 1.0 if char_path else 0.0
-            if style_lora_node:
-                node = id_to_node[style_lora_node]
-                node["inputs"]["lora_name"] = style_path if style_path else default_lora
-                node["inputs"]["strength_model"] = (
-                    args.style_weight if style_path else 0.0
+                scheduler_node = next(
+                    (
+                        k
+                        for k, v in id_to_node.items()
+                        if v.get("class_type") in ("BasicScheduler")
+                    ),
+                    None,
                 )
-            if empty_latent_node:
-                node = id_to_node[empty_latent_node]
-                node["inputs"]["width"] = args.width if args.width is not None else 1024
-                node["inputs"]["height"] = (
-                    args.height if args.height is not None else 1024
+                noise_node = next(
+                    (
+                        k
+                        for k, v in id_to_node.items()
+                        if v.get("class_type") in ("RandomNoise")
+                    ),
+                    None,
                 )
-            if flux_guidance_node:
-                id_to_node[flux_guidance_node]["inputs"]["guidance"] = (
-                    args.flux_guidance if args.flux_guidance is not None else 3.5
+                save_image_node = next(
+                    (
+                        k
+                        for k, v in id_to_node.items()
+                        if v.get("class_type", "").lower().startswith("saveimage")
+                    ),
+                    None,
+                )
+                char_lora_node = next(
+                    (
+                        k
+                        for k, v in id_to_node.items()
+                        if v.get("class_type") in ("LoraLoaderModelOnly")
+                        and v.get("_meta", {})
+                        .get("title", "")
+                        .lower()
+                        .startswith("my_lora")
+                    ),
+                    None,
+                )
+                style_lora_node = next(
+                    (
+                        k
+                        for k, v in id_to_node.items()
+                        if v.get("class_type") in ("LoraLoaderModelOnly")
+                        and v.get("_meta", {})
+                        .get("title", "")
+                        .lower()
+                        .startswith("style_lora")
+                    ),
+                    None,
+                )
+                empty_latent_node = next(
+                    (
+                        k
+                        for k, v in id_to_node.items()
+                        if v.get("class_type") in ("EmptySD3LatentImage")
+                    ),
+                    None,
+                )
+                model_sampling_node = next(
+                    (
+                        k
+                        for k, v in id_to_node.items()
+                        if v.get("class_type") in ("ModelSamplingFlux")
+                    ),
+                    None,
+                )
+                flux_guidance_node = next(
+                    (
+                        k
+                        for k, v in id_to_node.items()
+                        if v.get("class_type") in ("FluxGuidance")
+                    ),
+                    None,
                 )
 
-            # Debug output
-            print(f"🧪 Running {label} for {tag}...")
-            # debug_path = f"/tmp/graph_debug_{tag}_{label}.json"
-            # with open(debug_path, "w") as dbg:
-            #    json.dump(graph, dbg, indent=2)
-            # print(f"🛠️ Saved debug graph to {debug_path}")
+                # Update node inputs correctly
+                if prompt_node:
+                    id_to_node[prompt_node]["inputs"]["text"] = prompt
+                if scheduler_node:
+                    id_to_node[scheduler_node]["inputs"]["steps"] = (
+                        args.steps if args.steps is not None else 25
+                    )
+                if noise_node:
+                    id_to_node[noise_node]["inputs"]["noise_seed"] = prompt_seed
+                if save_image_node:
+                    node = id_to_node[save_image_node]
+                    # Map the old label names to new naming convention
+                    if label == "no_lora":
+                        label_code = "nl"
+                    elif label == "char_lora":
+                        label_code = "c"
+                    elif label == "char_plus_style":
+                        label_code = "cs"
+                    else:
+                        label_code = label
 
-            # Send to ComfyUI and wait for completion
-            res = send_to_comfy_http(args.host, {"prompt": graph})
-            prompt_id = res.get("prompt_id")
-            if prompt_id:
-                wait_for_execution(args.host, prompt_id)
-            print(f"✅ Completed: {output_prefix}_{label}")
+                    # Construct the new filename format
+                    # Format: p_001_character-name_r_01_seed_labelcode
+                    filename = f"{tag}_{char_lora_name}_{repeat_str}_{prompt_seed}_{label_code}"
+                    node["inputs"]["filename_prefix"] = filename
+                    node["inputs"]["output_folder"] = f"{output_path}"
+                if char_lora_node:
+                    node = id_to_node[char_lora_node]
+                    node["inputs"]["lora_name"] = (
+                        char_path if char_path else default_lora
+                    )
+                    node["inputs"]["strength_model"] = (
+                        args.lora_weight if char_path else 0.0
+                    )
+                if style_lora_node:
+                    node = id_to_node[style_lora_node]
+                    node["inputs"]["lora_name"] = (
+                        style_path if style_path else default_lora
+                    )
+                    node["inputs"]["strength_model"] = (
+                        args.style_weight if style_path else 0.0
+                    )
+                if empty_latent_node:
+                    node = id_to_node[empty_latent_node]
+                    node["inputs"]["width"] = width
+                    node["inputs"]["height"] = height
+
+                if model_sampling_node:
+                    node = id_to_node[model_sampling_node]
+                    node["inputs"]["width"] = width
+                    node["inputs"]["height"] = height
+
+                if flux_guidance_node:
+                    id_to_node[flux_guidance_node]["inputs"]["guidance"] = (
+                        args.flux_guidance if args.flux_guidance is not None else 3.5
+                    )
+
+                # Debug output
+                print(
+                    f"🧪 Running {label} for {tag_prompt} (repeat {repeat_idx}/{args.repeats})..."
+                )
+                # debug_path = f"/tmp/graph_debug_{tag}_{label}.json"
+                # with open(debug_path, "w") as dbg:
+                #    json.dump(graph, dbg, indent=2)
+                # print(f"🛠️ Saved debug graph to {debug_path}")
+
+                # Send to ComfyUI and wait for completion
+                res = send_to_comfy_http(args.host, {"prompt": graph})
+                prompt_id = res.get("prompt_id")
+                if prompt_id:
+                    wait_for_execution(args.host, prompt_id)
+                print(f"✅ Completed: {filename}")
 
 
 if __name__ == "__main__":
@@ -269,6 +329,9 @@ if __name__ == "__main__":
         type=str,
         required=True,
         help="Relative path to character LoRA (e.g., FLUX/my_lora/my_lora.safetensors)",
+    )
+    parser.add_argument(
+        "--lora_weight", type=float, default=1.0, help="Main LoRA weight. Default 1.0"
     )
     parser.add_argument("--style_lora", type=str, help="Relative path to style LoRA")
     parser.add_argument(
@@ -298,6 +361,17 @@ if __name__ == "__main__":
         "--flux_guidance",
         type=float,
         help="Set the value for FLuxGuidance. Default 3.5",
+    )
+    parser.add_argument(
+        "--repeats",
+        type=int,
+        default=1,
+        help="Number of times to repeat each prompt generation",
+    )
+    parser.add_argument(
+        "--save_no_style",
+        action="store_true",
+        help="If set, generate and save images without style LoRA (character LoRA only)",
     )
 
     args = parser.parse_args()
