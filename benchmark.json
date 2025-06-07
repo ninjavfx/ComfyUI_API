@@ -30,19 +30,6 @@
       "title": "Load VAE"
     }
   },
-  "4": {
-    "inputs": {
-      "device": "cpu",
-      "clip": [
-        "2",
-        0
-      ]
-    },
-    "class_type": "OverrideCLIPDevice",
-    "_meta": {
-      "title": "Force/Set CLIP Device"
-    }
-  },
   "5": {
     "inputs": {
       "lora_name": "FLUX/flux_realism_lora.safetensors",
@@ -75,7 +62,7 @@
     "inputs": {
       "text": "NONE",
       "clip": [
-        "4",
+        "2",
         0
       ]
     },
